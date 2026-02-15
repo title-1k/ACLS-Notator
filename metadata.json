@@ -1,0 +1,7 @@
+{
+  "name": "ACLS CPR Notator",
+  "description": "A high-performance medical tool for real-time ACLS event tracking, metronome synchronization, and post-arrest AI analysis.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
