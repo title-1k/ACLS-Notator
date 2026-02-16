@@ -51,11 +51,14 @@ const App: React.FC = () => {
   const [etco2Input, setEtco2Input] = useState('');
   const [showRhythmPopover, setShowRhythmPopover] = useState(false);
   const [showAmioPopover, setShowAmioPopover] = useState(false);
+  const [showDrugPopover, setShowDrugPopover] = useState(false);
   const [isWaitingForRhythm, setIsWaitingForRhythm] = useState(false);
   const [roscFlashing, setRoscFlashing] = useState(false);
+  const [isShockAdvised, setIsShockAdvised] = useState(false);
   
   const popoverRef = useRef<HTMLDivElement>(null);
   const amioPopoverRef = useRef<HTMLDivElement>(null);
+  const drugPopoverRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let interval: number;
@@ -70,7 +73,8 @@ const App: React.FC = () => {
 
         if (currentCycleElapsed >= 120000) {
           setShowRhythmPopover(true);
-          setShowAmioPopover(false); // Mutual exclusivity
+          setShowAmioPopover(false); 
+          setShowDrugPopover(false);
           setIsWaitingForRhythm(true); // Pause metronome sound
           setCycleStartTime(prev => prev + 120000);
           if (window.navigator.vibrate) window.navigator.vibrate([200, 100, 200]);
@@ -97,6 +101,16 @@ const App: React.FC = () => {
     if (type === ActionType.RHYTHM_CHECK) {
       setCycleStartTime(timestamp);
       setIsWaitingForRhythm(false); // Resume metronome sound
+      // Check if shockable rhythm was selected
+      if (details === 'VF' || details === 'pVT') {
+        setIsShockAdvised(true);
+      } else {
+        setIsShockAdvised(false);
+      }
+    }
+    
+    if (type === ActionType.SHOCK) {
+      setIsShockAdvised(false);
     }
 
     if (window.navigator.vibrate) window.navigator.vibrate(50);
@@ -157,6 +171,7 @@ const App: React.FC = () => {
     setCycleStartTime(0);
     setLastEpiTime(null);
     setIsWaitingForRhythm(false);
+    setIsShockAdvised(false);
   };
 
   const formatTime = (ms: number) => {
@@ -167,6 +182,7 @@ const App: React.FC = () => {
   };
 
   const epiDue = lastEpiTime !== null && (elapsedTime - lastEpiTime) >= 180000;
+  // Warning starts 10 seconds before 2 minutes
   const cycleDue = cycleTime >= 110000;
 
   return (
@@ -226,7 +242,7 @@ const App: React.FC = () => {
               </p>
             </div>
             <div className="h-full">
-              <Metronome isActive={arrest.isActive} isWarning={cycleTime >= 115000} forceMute={isWaitingForRhythm} />
+              <Metronome isActive={arrest.isActive} isWarning={cycleTime >= 110000} forceMute={isWaitingForRhythm} />
             </div>
           </div>
         )}
@@ -235,7 +251,7 @@ const App: React.FC = () => {
       <main className="flex-1 p-4 pb-24 overflow-y-auto space-y-4 custom-scrollbar">
         <div className="grid grid-cols-2 gap-3">
           <div className="relative" ref={popoverRef}>
-            <InterventionButton label="Rhythm Check" icon="bolt-lightning" color="amber" onClick={() => { setShowRhythmPopover(!showRhythmPopover); if (!showRhythmPopover) setShowAmioPopover(false); }} disabled={!arrest.isActive} urgent={cycleDue} />
+            <InterventionButton label="Rhythm Check" icon="bolt-lightning" color="amber" onClick={() => { setShowRhythmPopover(!showRhythmPopover); if (!showRhythmPopover) { setShowAmioPopover(false); setShowDrugPopover(false); } }} disabled={!arrest.isActive} urgent={cycleDue} />
             {showRhythmPopover && (
               <div className="absolute top-full left-0 mt-2 z-[60] w-64 bg-white border-2 border-slate-300 rounded-3xl shadow-2xl p-5 animate-in slide-in-from-top duration-150 ring-8 ring-red-500/10">
                 <p className="text-[11px] font-black text-red-600 uppercase mb-4 text-center tracking-widest flex items-center justify-center gap-2">
@@ -252,12 +268,12 @@ const App: React.FC = () => {
             )}
           </div>
           
-          <InterventionButton label="Shock 200 J" icon="bolt" color="red" onClick={() => logEvent(ActionType.SHOCK)} disabled={!arrest.isActive} />
+          <InterventionButton label="Shock 200 J" icon="bolt" color="red" onClick={() => logEvent(ActionType.SHOCK)} disabled={!arrest.isActive} shockAlert={isShockAdvised} />
           
           <InterventionButton label="Epinephrine" icon="syringe" color="emerald" onClick={() => logEvent(ActionType.EPINEPHRINE)} disabled={!arrest.isActive} urgent={epiDue} />
           
           <div className="relative" ref={amioPopoverRef}>
-            <InterventionButton label="Amiodarone" icon="capsules" color="purple" onClick={() => { setShowAmioPopover(!showAmioPopover); if (!showAmioPopover) setShowRhythmPopover(false); }} disabled={!arrest.isActive} />
+            <InterventionButton label="Amiodarone" icon="capsules" color="purple" onClick={() => { setShowAmioPopover(!showAmioPopover); if (!showAmioPopover) { setShowRhythmPopover(false); setShowDrugPopover(false); } }} disabled={!arrest.isActive} />
             {showAmioPopover && (
               <div className="absolute top-full right-0 mt-2 z-[60] w-64 bg-white border-2 border-slate-300 rounded-3xl shadow-2xl p-5 animate-in slide-in-from-top duration-150 ring-8 ring-purple-500/10">
                 <p className="text-[11px] font-black text-purple-600 uppercase mb-4 text-center tracking-widest">Select Dose</p>
@@ -275,10 +291,28 @@ const App: React.FC = () => {
           <InterventionButton label="Airway" icon="lungs" color="slate" onClick={() => logEvent(ActionType.INTUBATION)} disabled={!arrest.isActive} />
           
           <InterventionButton label="IV / IO Access" icon="faucet-drip" color="blue" onClick={() => logEvent(ActionType.IV_IO)} disabled={!arrest.isActive} />
-          <InterventionButton label="NaHCO3" icon="flask" color="zinc" onClick={() => logEvent(ActionType.NAHCO3)} disabled={!arrest.isActive} />
-          
-          <InterventionButton label="Calcium" icon="vial-circle-check" color="orange" onClick={() => logEvent(ActionType.CALCIUM)} disabled={!arrest.isActive} />
-          <InterventionButton label="RI + Glucose" icon="droplet" color="pink" onClick={() => logEvent(ActionType.RI_GLUCOSE)} disabled={!arrest.isActive} />
+
+          {/* CONSOLIDATED OTHER DRUGS POPOVER - MODIFIED TO POP TO THE LEFT */}
+          <div className="relative" ref={drugPopoverRef}>
+            <InterventionButton label="Other Drugs" icon="prescription-bottle-medical" color="zinc" onClick={() => { setShowDrugPopover(!showDrugPopover); if (!showDrugPopover) { setShowRhythmPopover(false); setShowAmioPopover(false); } }} disabled={!arrest.isActive} />
+            {showDrugPopover && (
+              <div className="absolute top-0 right-full mr-3 z-[60] w-64 bg-white border-2 border-slate-300 rounded-3xl shadow-2xl p-5 animate-in slide-in-from-right duration-150 ring-8 ring-zinc-500/10">
+                <p className="text-[11px] font-black text-zinc-600 uppercase mb-4 text-center tracking-widest">Select Drug</p>
+                <div className="grid grid-cols-1 gap-3">
+                  <button onClick={() => { logEvent(ActionType.NAHCO3); setShowDrugPopover(false); }} className="bg-zinc-600 text-white text-xs font-black py-4 rounded-2xl shadow-md active:scale-95 flex items-center justify-center gap-2">
+                    <i className="fas fa-flask"></i> 7.5% NaHCO3
+                  </button>
+                  <button onClick={() => { logEvent(ActionType.CALCIUM); setShowDrugPopover(false); }} className="bg-orange-500 text-white text-xs font-black py-4 rounded-2xl shadow-md active:scale-95 flex items-center justify-center gap-2">
+                    <i className="fas fa-vial-circle-check"></i> Calcium gluconate
+                  </button>
+                  <button onClick={() => { logEvent(ActionType.RI_GLUCOSE); setShowDrugPopover(false); }} className="bg-pink-500 text-white text-xs font-black py-4 rounded-2xl shadow-md active:scale-95 flex items-center justify-center gap-2">
+                    <i className="fas fa-droplet"></i> RI + Glucose
+                  </button>
+                </div>
+                <button onClick={() => setShowDrugPopover(false)} className="w-full mt-4 py-2 text-[8px] font-black text-slate-400 uppercase tracking-widest">Close</button>
+              </div>
+            )}
+          </div>
 
           <div className="col-span-2 bg-white p-3 rounded-2xl border border-slate-200 flex gap-2 items-center shadow-sm">
             <input type="number" placeholder="EtCO2 mmHg" value={etco2Input} onChange={e => setEtco2Input(e.target.value)} disabled={!arrest.isActive} className="flex-1 bg-slate-50 border-none rounded-lg px-4 py-3 text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none" />
@@ -344,7 +378,7 @@ const App: React.FC = () => {
       )}
 
       <footer className="p-4 bg-slate-100 text-[8px] text-slate-400 text-center border-t border-slate-200 uppercase font-black tracking-widest no-print">
-        ACLS Scribe • version 1.1.1 • Medical Use Only
+        ACLS Scribe • version 1.1.4 • Medical Use Only
       </footer>
     </div>
   );
@@ -372,7 +406,8 @@ const InterventionButton: React.FC<{
   onClick: () => void; 
   disabled?: boolean; 
   urgent?: boolean;
-}> = ({ label, icon, color, onClick, disabled, urgent }) => {
+  shockAlert?: boolean;
+}> = ({ label, icon, color, onClick, disabled, urgent, shockAlert }) => {
   const [isFlashing, setIsFlashing] = useState(false);
 
   const colorMap: any = {
@@ -421,7 +456,7 @@ const InterventionButton: React.FC<{
     <button
       onClick={handleTap}
       disabled={disabled}
-      className={`w-full h-24 rounded-2xl flex flex-col items-center justify-center gap-2 shadow-sm active:scale-95 transition-all duration-150 disabled:opacity-20 border-b-4 border-slate-200 ${bgColorClass} ${urgent ? 'ring-4 ring-amber-400 animate-pulse' : ''}`}
+      className={`w-full h-24 rounded-2xl flex flex-col items-center justify-center gap-2 shadow-sm active:scale-95 transition-all duration-150 disabled:opacity-20 border-b-4 border-slate-200 ${bgColorClass} ${urgent ? 'ring-4 ring-amber-400 animate-pulse' : ''} ${shockAlert ? 'ring-4 ring-red-500 animate-pulse bg-red-50 border-red-500' : ''}`}
     >
       <div className={`p-2.5 rounded-xl transition-colors duration-150 ${iconBgClass} ${iconTextClass}`}>
         <i className={`fas fa-${icon} text-xl`}></i>
