@@ -55,7 +55,7 @@ const Metronome: React.FC<MetronomeProps> = ({ isActive, isWarning }) => {
   };
 
   return (
-    <div className={`flex items-center justify-between p-1 rounded-lg border-2 transition-all h-[44px] ${
+    <div className={`flex items-center justify-between rounded-lg border-2 transition-all h-full ${
       isWarning 
         ? (tick ? 'bg-orange-600 border-orange-400' : 'bg-orange-50 border-orange-200')
         : (tick ? 'bg-blue-600 border-blue-400' : 'bg-slate-50 border-slate-100')
@@ -72,12 +72,12 @@ const Metronome: React.FC<MetronomeProps> = ({ isActive, isWarning }) => {
       {/* Center Display: Icon and Text side-by-side */}
       <button 
         onClick={() => setIsMuted(!isMuted)}
-        className="flex items-center justify-center gap-2 flex-1 px-1 h-full"
+        className="flex items-center justify-center gap-1.5 flex-1 px-0.5 h-full"
       >
-        <i className={`fas ${isMuted ? 'fa-volume-mute' : 'fa-volume-up'} text-[11px] ${tick && !isWarning ? 'text-white' : 'text-slate-400'}`}></i>
+        <i className={`fas ${isMuted ? 'fa-volume-mute' : 'fa-volume-up'} text-[10px] ${tick && !isWarning ? 'text-white' : 'text-slate-400'}`}></i>
         <div className="flex flex-col items-center justify-center">
           <span className={`text-[12px] font-black font-mono leading-none ${tick && !isWarning ? 'text-white' : 'text-slate-900'}`}>{bpm}</span>
-          <span className={`text-[5px] font-black uppercase tracking-tighter leading-none mt-0.5 ${tick && !isWarning ? 'text-blue-100' : 'text-slate-400'}`}>BPM</span>
+          <span className={`text-[6px] font-black uppercase tracking-tighter leading-none mt-0.5 ${tick && !isWarning ? 'text-blue-100' : 'text-slate-400'}`}>BPM</span>
         </div>
       </button>
 

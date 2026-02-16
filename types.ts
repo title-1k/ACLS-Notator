@@ -3,7 +3,7 @@ export enum ActionType {
   COMPRESSION_START = 'Compression Started',
   COMPRESSION_STOP = 'Compression Stopped',
   RHYTHM_CHECK = 'Rhythm Check',
-  SHOCK = 'Defibrillation',
+  SHOCK = 'Shock 200 J',
   EPINEPHRINE = 'Epinephrine 1mg',
   AMIODARONE_300 = 'Amiodarone 300mg',
   AMIODARONE_150 = 'Amiodarone 150mg',

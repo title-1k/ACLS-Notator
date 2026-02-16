@@ -50,8 +50,10 @@ const App: React.FC = () => {
   const [showAnalysis, setShowAnalysis] = useState(false);
   const [etco2Input, setEtco2Input] = useState('');
   const [showRhythmPopover, setShowRhythmPopover] = useState(false);
+  const [showAmioPopover, setShowAmioPopover] = useState(false);
   
   const popoverRef = useRef<HTMLDivElement>(null);
+  const amioPopoverRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let interval: number;
@@ -64,7 +66,6 @@ const App: React.FC = () => {
         const currentCycleElapsed = currentTotalElapsed - cycleStartTime;
         setCycleTime(currentCycleElapsed);
 
-        // Auto-trigger Rhythm Check at 2 minutes
         if (currentCycleElapsed >= 120000) {
           setShowRhythmPopover(true);
           setCycleStartTime(prev => prev + 120000);
@@ -156,7 +157,7 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col max-w-lg mx-auto shadow-none sm:shadow-2xl border-x border-slate-200">
-      {/* HIGH VISIBILITY HOSPITAL BANNER - ALWAYS VISIBLE AT TOP */}
+      {/* HOSPITAL BRANDING - HIGH CONTRAST */}
       <div className="bg-slate-900 text-white px-4 py-2.5 shadow-md no-print border-b border-slate-700">
         <p className="text-[13px] font-black uppercase tracking-wider text-center">
           ห้องฉุกเฉิน ศูนย์การแพทย์กาญจนาภิเษก
@@ -166,20 +167,20 @@ const App: React.FC = () => {
       <header className="p-4 bg-white border-b-2 border-slate-900 sticky top-0 z-50 shadow-sm no-print">
         <div className="flex justify-between items-start mb-4">
           <div className="flex-1">
-            <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
-              <span className="bg-red-600 text-white px-2 py-0.5 rounded text-xs">ACLS</span>
+            <h1 className="text-xl font-black text-slate-900 flex items-center gap-2 leading-none">
+              <span className="bg-red-600 text-white px-2 py-0.5 rounded text-[10px]">ACLS</span>
               SCRIBE
             </h1>
-            <div className="mt-2">
+            <div className="mt-2.5">
                {arrest.isActive ? (
                 <div className="flex flex-col">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">TOTAL ELAPSED TIME</span>
-                  <span className="text-4xl font-mono font-black text-red-600 leading-none drop-shadow-sm">{formatTime(elapsedTime)}</span>
+                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-0.5">ELAPSED TIME</span>
+                  <span className="text-4xl font-mono font-black text-red-600 leading-none tracking-tighter">{formatTime(elapsedTime)}</span>
                 </div>
               ) : (
-                <div className="flex items-center gap-2 text-slate-400 text-[10px] font-bold uppercase tracking-widest">
-                  <span className="w-2 h-2 rounded-full bg-slate-200"></span>
-                  Ready to record
+                <div className="flex items-center gap-2 text-slate-400 text-[9px] font-bold uppercase tracking-widest">
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-200"></span>
+                  Recording Standby
                 </div>
               )}
             </div>
@@ -191,7 +192,7 @@ const App: React.FC = () => {
                 Start Code
               </button>
             ) : (
-              <button onClick={() => setArrest(p => ({...p, isActive: false}))} className="bg-slate-100 text-red-600 px-4 py-2 rounded-lg font-black uppercase text-[10px] active:scale-95 border border-slate-200">
+              <button onClick={() => setArrest(p => ({...p, isActive: false}))} className="bg-slate-100 text-red-600 px-3 py-1.5 rounded-lg font-black uppercase text-[9px] active:scale-95 border border-slate-200">
                 End Case
               </button>
             )}
@@ -199,18 +200,20 @@ const App: React.FC = () => {
         </div>
 
         {arrest.isActive && (
-          <div className="grid grid-cols-3 gap-2">
-            <div className={`p-2 rounded-lg border-2 transition-all ${cycleDue ? 'bg-amber-50 border-amber-500' : 'bg-slate-50 border-slate-100'}`}>
-              <p className="text-[8px] font-black text-slate-400 uppercase text-center">Cycle</p>
-              <p className={`text-sm font-mono font-bold text-center ${cycleDue ? 'text-amber-600 animate-pulse' : 'text-slate-900'}`}>{formatTime(cycleTime)}</p>
+          <div className="grid grid-cols-3 gap-2 items-stretch">
+            <div className={`flex flex-col justify-center p-2 rounded-lg border-2 transition-all ${cycleDue ? 'bg-amber-50 border-amber-500' : 'bg-slate-50 border-slate-100'}`}>
+              <p className="text-[8px] font-black text-slate-400 uppercase text-center leading-none mb-1">Cycle</p>
+              <p className={`text-sm font-mono font-bold text-center leading-none ${cycleDue ? 'text-amber-600 animate-pulse' : 'text-slate-900'}`}>{formatTime(cycleTime)}</p>
             </div>
-            <div className={`p-2 rounded-lg border-2 transition-all ${epiDue ? 'bg-green-50 border-green-500' : 'bg-slate-50 border-slate-100'}`}>
-              <p className="text-[8px] font-black text-slate-400 uppercase text-center">Epi Due</p>
-              <p className={`text-sm font-mono font-bold text-center ${epiDue ? 'text-green-600 animate-pulse' : 'text-slate-900'}`}>
+            <div className={`flex flex-col justify-center p-2 rounded-lg border-2 transition-all ${epiDue ? 'bg-green-50 border-green-500' : 'bg-slate-50 border-slate-100'}`}>
+              <p className="text-[8px] font-black text-slate-400 uppercase text-center leading-none mb-1">Epi Due</p>
+              <p className={`text-sm font-mono font-bold text-center leading-none ${epiDue ? 'text-green-600 animate-pulse' : 'text-slate-900'}`}>
                 {lastEpiTime !== null ? formatTime(Math.max(0, 180000 - (elapsedTime - lastEpiTime))) : '--:--'}
               </p>
             </div>
-            <Metronome isActive={arrest.isActive} isWarning={cycleTime >= 115000} />
+            <div className="h-full">
+              <Metronome isActive={arrest.isActive} isWarning={cycleTime >= 115000} />
+            </div>
           </div>
         )}
       </header>
@@ -230,15 +233,29 @@ const App: React.FC = () => {
                   <button onClick={() => { logEvent(ActionType.RHYTHM_CHECK, 'PEA'); setShowRhythmPopover(false); }} className="bg-slate-800 text-white text-xs font-black py-4 rounded-2xl shadow-md active:scale-95">PEA</button>
                   <button onClick={() => { logEvent(ActionType.RHYTHM_CHECK, 'Asystole'); setShowRhythmPopover(false); }} className="bg-slate-800 text-white text-xs font-black py-4 rounded-2xl shadow-md active:scale-95">Asystole</button>
                 </div>
-                <button onClick={() => setShowRhythmPopover(false)} className="w-full mt-4 py-2 text-[8px] font-black text-slate-400 uppercase tracking-widest">Dismiss</button>
+                <button onClick={() => setShowRhythmPopover(false)} className="w-full mt-4 py-2 text-[8px] font-black text-slate-400 uppercase tracking-widest">Close</button>
               </div>
             )}
           </div>
-          <InterventionButton label="Shock" icon="bolt" color="red" onClick={() => logEvent(ActionType.SHOCK)} disabled={!arrest.isActive} />
-          <InterventionButton label="Epinephrine" icon="syringe" color="emerald" onClick={() => logEvent(ActionType.EPINEPHRINE)} disabled={!arrest.isActive} urgent={epiDue} />
-          <InterventionButton label="Amiodarone" icon="capsules" color="purple" onClick={() => logEvent(ActionType.AMIODARONE_300)} disabled={!arrest.isActive} />
           
-          {/* LIDOCAINE BUTTON - GUARANTEED PRESENT */}
+          <InterventionButton label="Shock 200 J" icon="bolt" color="red" onClick={() => logEvent(ActionType.SHOCK)} disabled={!arrest.isActive} swapped />
+          
+          <InterventionButton label="Epinephrine" icon="syringe" color="emerald" onClick={() => logEvent(ActionType.EPINEPHRINE)} disabled={!arrest.isActive} urgent={epiDue} swapped />
+          
+          <div className="relative" ref={amioPopoverRef}>
+            <InterventionButton label="Amiodarone" icon="capsules" color="purple" onClick={() => setShowAmioPopover(!showAmioPopover)} disabled={!arrest.isActive} />
+            {showAmioPopover && (
+              <div className="absolute top-full right-0 mt-2 z-[60] w-64 bg-white border-2 border-slate-300 rounded-3xl shadow-2xl p-5 animate-in slide-in-from-top duration-150 ring-8 ring-purple-500/10">
+                <p className="text-[11px] font-black text-purple-600 uppercase mb-4 text-center tracking-widest">Select Dose</p>
+                <div className="grid grid-cols-1 gap-3">
+                  <button onClick={() => { logEvent(ActionType.AMIODARONE_300); setShowAmioPopover(false); }} className="bg-purple-600 text-white text-xs font-black py-4 rounded-2xl shadow-md active:scale-95">300 mg</button>
+                  <button onClick={() => { logEvent(ActionType.AMIODARONE_150); setShowAmioPopover(false); }} className="bg-purple-500 text-white text-xs font-black py-4 rounded-2xl shadow-md active:scale-95">150 mg</button>
+                </div>
+                <button onClick={() => setShowAmioPopover(false)} className="w-full mt-4 py-2 text-[8px] font-black text-slate-400 uppercase tracking-widest">Close</button>
+              </div>
+            )}
+          </div>
+          
           <InterventionButton label="Lidocaine" icon="vial" color="cyan" onClick={() => logEvent(ActionType.LIDOCAINE)} disabled={!arrest.isActive} />
           
           <InterventionButton label="Airway" icon="lungs" color="slate" onClick={() => logEvent(ActionType.INTUBATION)} disabled={!arrest.isActive} />
@@ -299,7 +316,7 @@ const App: React.FC = () => {
       )}
 
       <footer className="p-4 bg-slate-100 text-[8px] text-slate-400 text-center border-t border-slate-200 uppercase font-black tracking-widest no-print">
-        ACLS Scribe • version 1.0.4 • Medical Use Only
+        ACLS Scribe • version 1.0.7 • Medical Use Only
       </footer>
     </div>
   );
@@ -320,7 +337,15 @@ const App: React.FC = () => {
   }
 };
 
-const InterventionButton: React.FC<{ label: string; icon: string; color: string; onClick: () => void; disabled?: boolean; urgent?: boolean }> = ({ label, icon, color, onClick, disabled, urgent }) => {
+const InterventionButton: React.FC<{ 
+  label: string; 
+  icon: string; 
+  color: string; 
+  onClick: () => void; 
+  disabled?: boolean; 
+  urgent?: boolean;
+  swapped?: boolean;
+}> = ({ label, icon, color, onClick, disabled, urgent, swapped }) => {
   const colorMap: any = {
     amber: 'bg-amber-500',
     red: 'bg-red-600',
@@ -331,17 +356,33 @@ const InterventionButton: React.FC<{ label: string; icon: string; color: string;
     cyan: 'bg-cyan-600',
     blue: 'bg-blue-600'
   };
+
+  const textMap: any = {
+    amber: 'text-amber-600',
+    red: 'text-red-600',
+    emerald: 'text-emerald-600',
+    purple: 'text-purple-600',
+    slate: 'text-slate-700',
+    rose: 'text-rose-600',
+    cyan: 'text-cyan-600',
+    blue: 'text-blue-600'
+  };
   
+  const bgColorClass = (swapped && !disabled) ? colorMap[color] : (disabled ? 'bg-slate-100' : 'bg-white');
+  const iconBgClass = (swapped && !disabled) ? 'bg-white' : (colorMap[color] || 'bg-slate-500');
+  const iconTextClass = (swapped && !disabled) ? textMap[color] : 'text-white';
+  const labelTextClass = (swapped && !disabled) ? 'text-white' : 'text-slate-700';
+
   return (
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`w-full h-24 rounded-2xl flex flex-col items-center justify-center gap-2 shadow-sm active:scale-95 transition-all disabled:opacity-20 border-b-4 border-slate-200 ${disabled ? 'bg-slate-100' : 'bg-white'} ${urgent ? 'ring-4 ring-amber-400 animate-pulse' : ''}`}
+      className={`w-full h-24 rounded-2xl flex flex-col items-center justify-center gap-2 shadow-sm active:scale-95 transition-all disabled:opacity-20 border-b-4 border-slate-200 ${bgColorClass} ${urgent ? 'ring-4 ring-amber-400 animate-pulse' : ''}`}
     >
-      <div className={`p-2.5 rounded-xl text-white ${colorMap[color] || 'bg-slate-500'}`}>
+      <div className={`p-2.5 rounded-xl ${iconBgClass} ${iconTextClass}`}>
         <i className={`fas fa-${icon} text-xl`}></i>
       </div>
-      <span className="text-[10px] font-black uppercase text-slate-700 tracking-tighter leading-tight text-center px-1">{label}</span>
+      <span className={`text-[10px] font-black uppercase text-slate-700 tracking-tighter leading-tight text-center px-1 ${labelTextClass}`}>{label}</span>
     </button>
   );
 };
