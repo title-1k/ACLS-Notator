@@ -1,9 +1,8 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { GoogleGenAI, Modality } from "@google/genai";
-import { ActionType, ACLSEvent, ArrestState, ACLSRhythms } from './types';
+import { ActionType, ACLSEvent, ArrestState } from './types';
 import Metronome from './components/Metronome';
-import StatCard from './components/StatCard';
 import { analyzeArrest } from './services/geminiService';
 
 function decodeBase64(base64: string) {
@@ -42,16 +41,16 @@ const App: React.FC = () => {
     events: []
   });
 
-  const [patientInfo, setPatientInfo] = useState({ name: '', hn: '', location: '', leader: '' });
   const [elapsedTime, setElapsedTime] = useState(0);
   const [cycleTime, setCycleTime] = useState(0);
+  const [cycleStartTime, setCycleStartTime] = useState<number>(0);
   const [lastEpiTime, setLastEpiTime] = useState<number | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
   const [showAnalysis, setShowAnalysis] = useState(false);
-  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [etco2Input, setEtco2Input] = useState('');
   const [showRhythmPopover, setShowRhythmPopover] = useState(false);
+  
   const popoverRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -59,15 +58,23 @@ const App: React.FC = () => {
     if (arrest.isActive && arrest.startTime) {
       interval = window.setInterval(() => {
         const now = Date.now();
-        const currentElapsed = now - (arrest.startTime || now);
-        setElapsedTime(currentElapsed);
-        const lastCheck = [...arrest.events].reverse().find(e => e.type === ActionType.RHYTHM_CHECK);
-        const cycleBase = lastCheck ? lastCheck.timestamp : 0;
-        setCycleTime(currentElapsed - cycleBase);
+        const currentTotalElapsed = now - (arrest.startTime || now);
+        setElapsedTime(currentTotalElapsed);
+        
+        const currentCycleElapsed = currentTotalElapsed - cycleStartTime;
+        setCycleTime(currentCycleElapsed);
+
+        // Auto-trigger Rhythm Check at exactly 2 minutes (120,000 ms)
+        if (currentCycleElapsed >= 120000) {
+          setShowRhythmPopover(true);
+          // Start next cycle immediately by shifting the baseline
+          setCycleStartTime(prev => prev + 120000);
+          if (window.navigator.vibrate) window.navigator.vibrate([200, 100, 200]);
+        }
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [arrest.isActive, arrest.startTime, arrest.events]);
+  }, [arrest.isActive, arrest.startTime, cycleStartTime]);
 
   const logEvent = useCallback((type: ActionType | string, details?: string) => {
     const now = Date.now();
@@ -81,21 +88,29 @@ const App: React.FC = () => {
       details
     };
     setArrest(prev => ({ ...prev, events: [newEvent, ...prev.events] }));
+    
     if (type === ActionType.EPINEPHRINE) setLastEpiTime(timestamp);
-    // Haptic feedback for iPhone users
+    if (type === ActionType.RHYTHM_CHECK) {
+      // Manual log also resets the cycle timer to stay in sync with medical reality
+      setCycleStartTime(timestamp);
+    }
+
     if (window.navigator.vibrate) window.navigator.vibrate(50);
   }, [arrest.startTime]);
 
   const playROSCAlert = async () => {
-    setIsPlayingAudio(true);
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash-preview-tts",
-        contents: [{ parts: [{ text: 'Alert: ROSC detected. Prepare ICU transfer.' }] }],
+        contents: [{ parts: [{ text: 'Shout loudly and very quickly: R. O. S. C.!' }] }],
         config: {
           responseModalities: [Modality.AUDIO],
-          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
+          speechConfig: { 
+            voiceConfig: { 
+              prebuiltVoiceConfig: { voiceName: 'Kore' } 
+            } 
+          },
         },
       });
       const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
@@ -106,14 +121,10 @@ const App: React.FC = () => {
         const source = audioCtx.createBufferSource();
         source.buffer = audioBuffer;
         source.connect(audioCtx.destination);
-        source.onended = () => setIsPlayingAudio(false);
         source.start();
-      } else {
-        setIsPlayingAudio(false);
       }
     } catch (error) {
-      console.error(error);
-      setIsPlayingAudio(false);
+      console.error("TTS failed", error);
     }
   };
 
@@ -131,6 +142,7 @@ const App: React.FC = () => {
     });
     setElapsedTime(0);
     setCycleTime(0);
+    setCycleStartTime(0);
     setLastEpiTime(null);
   };
 
@@ -142,79 +154,97 @@ const App: React.FC = () => {
   };
 
   const epiDue = lastEpiTime !== null && (elapsedTime - lastEpiTime) >= 180000;
-  const cycleDue = cycleTime >= 120000;
+  const cycleDue = cycleTime >= 110000; // Prepare for rhythm check 10s before
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col max-w-lg mx-auto shadow-none sm:shadow-2xl border-x border-slate-200">
-      {/* Fixed Header for Mobile */}
       <header className="p-4 bg-white border-b-2 border-slate-900 sticky top-0 z-50 shadow-sm no-print">
-        <div className="flex justify-between items-center mb-4">
-          <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
-            <span className="bg-red-600 text-white px-2 py-0.5 rounded text-xs">ACLS</span>
-            SCRIBE
-          </h1>
-          {!arrest.isActive ? (
-            <button onClick={startArrest} className="bg-red-600 text-white px-5 py-2 rounded-lg font-black uppercase text-xs shadow-lg active:scale-95">
-              Start Code
-            </button>
-          ) : (
-            <button onClick={() => setArrest(p => ({...p, isActive: false}))} className="bg-slate-900 text-white px-5 py-2 rounded-lg font-black uppercase text-xs active:scale-95">
-              Stop
-            </button>
-          )}
+        <div className="flex justify-between items-start mb-4">
+          <div className="flex-1">
+            <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
+              <span className="bg-red-600 text-white px-2 py-0.5 rounded text-xs">ACLS</span>
+              SCRIBE
+            </h1>
+            <p className="text-[10px] font-bold text-slate-600 mt-1 uppercase tracking-tight">ห้องฉุกเฉิน ศูนย์การแพทย์กาญจนาภิเษก</p>
+          </div>
+          
+          <div className="flex flex-col items-end">
+            {arrest.isActive ? (
+              <div className="flex flex-col items-end">
+                <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">TOTAL ELAPSED</span>
+                <span className="text-3xl font-mono font-black text-slate-900 leading-none">{formatTime(elapsedTime)}</span>
+                <button onClick={() => setArrest(p => ({...p, isActive: false}))} className="text-[10px] font-black text-red-500 uppercase underline mt-1">End Code</button>
+              </div>
+            ) : (
+              <button onClick={startArrest} className="bg-red-600 text-white px-6 py-3 rounded-xl font-black uppercase text-xs shadow-lg active:scale-95">
+                Start Code
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Vital Timers */}
-        <div className="grid grid-cols-3 gap-2">
-          <div className={`p-2 rounded-lg border-2 ${cycleDue ? 'bg-amber-50 border-amber-500 animate-pulse' : 'bg-slate-50 border-slate-100'}`}>
-            <p className="text-[8px] font-black text-slate-400 uppercase text-center">Cycle</p>
-            <p className="text-sm font-mono font-bold text-center">{formatTime(Math.max(0, 120000 - cycleTime))}</p>
+        {arrest.isActive && (
+          <div className="grid grid-cols-3 gap-2">
+            <div className={`p-2 rounded-lg border-2 transition-all ${cycleDue ? 'bg-amber-50 border-amber-500' : 'bg-slate-50 border-slate-100'}`}>
+              <p className="text-[8px] font-black text-slate-400 uppercase text-center">Cycle</p>
+              <p className={`text-sm font-mono font-bold text-center ${cycleDue ? 'text-amber-600 animate-pulse' : 'text-slate-900'}`}>{formatTime(cycleTime)}</p>
+            </div>
+            <div className={`p-2 rounded-lg border-2 transition-all ${epiDue ? 'bg-green-50 border-green-500' : 'bg-slate-50 border-slate-100'}`}>
+              <p className="text-[8px] font-black text-slate-400 uppercase text-center">Epi Due In</p>
+              <p className={`text-sm font-mono font-bold text-center ${epiDue ? 'text-green-600 animate-pulse' : 'text-slate-900'}`}>
+                {lastEpiTime !== null ? formatTime(Math.max(0, 180000 - (elapsedTime - lastEpiTime))) : '--:--'}
+              </p>
+            </div>
+            <Metronome isActive={arrest.isActive} isWarning={cycleTime >= 115000} />
           </div>
-          <div className={`p-2 rounded-lg border-2 ${epiDue ? 'bg-green-50 border-green-500 animate-pulse' : 'bg-slate-50 border-slate-100'}`}>
-            <p className="text-[8px] font-black text-slate-400 uppercase text-center">Epi</p>
-            <p className="text-sm font-mono font-bold text-center">{lastEpiTime !== null ? formatTime(Math.max(0, 180000 - (elapsedTime - lastEpiTime))) : '--:--'}</p>
-          </div>
-          <Metronome isActive={arrest.isActive} isWarning={cycleTime >= 110000} />
-        </div>
+        )}
       </header>
 
-      {/* Intervention Grid - Optimized for Mobile Thumb Reach */}
       <main className="flex-1 p-4 pb-24 overflow-y-auto space-y-4 custom-scrollbar">
         <div className="grid grid-cols-2 gap-3">
           <div className="relative" ref={popoverRef}>
             <InterventionButton label="Rhythm Check" icon="bolt-lightning" color="amber" onClick={() => setShowRhythmPopover(!showRhythmPopover)} disabled={!arrest.isActive} urgent={cycleDue} />
             {showRhythmPopover && (
-              <div className="absolute bottom-full left-0 mb-2 z-[60] w-64 bg-white border-2 border-slate-200 rounded-2xl shadow-2xl p-4 animate-in slide-in-from-bottom duration-150">
-                <div className="grid grid-cols-2 gap-2">
-                  <button onClick={() => { logEvent(ActionType.RHYTHM_CHECK, 'VF/pVT'); setShowRhythmPopover(false); }} className="bg-red-600 text-white text-[10px] font-black py-3 rounded-lg">SHOCKABLE</button>
-                  <button onClick={() => { logEvent(ActionType.RHYTHM_CHECK, 'PEA/Asystole'); setShowRhythmPopover(false); }} className="bg-slate-800 text-white text-[10px] font-black py-3 rounded-lg">NON-SHOCKABLE</button>
+              <div className="absolute top-full left-0 mt-2 z-[60] w-64 bg-white border-2 border-slate-300 rounded-3xl shadow-2xl p-5 animate-in slide-in-from-top duration-150 ring-8 ring-red-500/10">
+                <p className="text-[11px] font-black text-red-600 uppercase mb-4 text-center tracking-widest flex items-center justify-center gap-2">
+                  <i className="fas fa-heart-pulse animate-beat"></i> Rhythm Check Required
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <button onClick={() => { logEvent(ActionType.RHYTHM_CHECK, 'VF'); setShowRhythmPopover(false); }} className="bg-red-600 text-white text-xs font-black py-4 rounded-2xl shadow-md active:scale-95">VF</button>
+                  <button onClick={() => { logEvent(ActionType.RHYTHM_CHECK, 'pVT'); setShowRhythmPopover(false); }} className="bg-red-600 text-white text-xs font-black py-4 rounded-2xl shadow-md active:scale-95">pVT</button>
+                  <button onClick={() => { logEvent(ActionType.RHYTHM_CHECK, 'PEA'); setShowRhythmPopover(false); }} className="bg-slate-800 text-white text-xs font-black py-4 rounded-2xl shadow-md active:scale-95">PEA</button>
+                  <button onClick={() => { logEvent(ActionType.RHYTHM_CHECK, 'Asystole'); setShowRhythmPopover(false); }} className="bg-slate-800 text-white text-xs font-black py-4 rounded-2xl shadow-md active:scale-95">Asystole</button>
                 </div>
+                <button onClick={() => setShowRhythmPopover(false)} className="w-full mt-4 py-2 text-[8px] font-black text-slate-400 uppercase tracking-widest">Close Popover</button>
               </div>
             )}
           </div>
           <InterventionButton label="Shock" icon="bolt" color="red" onClick={() => logEvent(ActionType.SHOCK)} disabled={!arrest.isActive} />
           <InterventionButton label="Epinephrine" icon="syringe" color="emerald" onClick={() => logEvent(ActionType.EPINEPHRINE)} disabled={!arrest.isActive} urgent={epiDue} />
           <InterventionButton label="Amiodarone" icon="capsules" color="purple" onClick={() => logEvent(ActionType.AMIODARONE_300)} disabled={!arrest.isActive} />
+          <InterventionButton label="Lidocaine" icon="vial" color="cyan" onClick={() => logEvent(ActionType.LIDOCAINE)} disabled={!arrest.isActive} />
           <InterventionButton label="Airway" icon="lungs" color="slate" onClick={() => logEvent(ActionType.INTUBATION)} disabled={!arrest.isActive} />
           <InterventionButton label="ROSC" icon="heart-pulse" color="rose" onClick={() => { logEvent(ActionType.ROSC); playROSCAlert(); }} disabled={!arrest.isActive} />
           
           <div className="col-span-2 bg-white p-3 rounded-2xl border border-slate-200 flex gap-2 items-center">
-            <input type="number" placeholder="EtCO2" value={etco2Input} onChange={e => setEtco2Input(e.target.value)} disabled={!arrest.isActive} className="flex-1 bg-slate-50 border-none rounded-lg px-4 py-3 text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none" />
-            <button onClick={() => { logEvent(ActionType.ETCO2, `${etco2Input} mmHg`); setEtco2Input(''); }} className="bg-blue-600 text-white px-6 py-3 rounded-lg font-black uppercase text-[10px]">Log</button>
+            <input type="number" placeholder="EtCO2 Level" value={etco2Input} onChange={e => setEtco2Input(e.target.value)} disabled={!arrest.isActive} className="flex-1 bg-slate-50 border-none rounded-lg px-4 py-3 text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none" />
+            <button onClick={() => { logEvent(ActionType.ETCO2, `${etco2Input} mmHg`); setEtco2Input(''); }} className="bg-blue-600 text-white px-6 py-3 rounded-lg font-black uppercase text-[10px]">Log EtCO2</button>
           </div>
         </div>
 
-        {/* Live Event Feed */}
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
           <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Live Timeline</span>
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Protocol Timeline</span>
             {arrest.events.length > 0 && (
-               <button onClick={handleAIAnalysis} disabled={isAnalyzing} className="text-[9px] font-black text-blue-600 uppercase">Debrief</button>
+               <button onClick={handleAIAnalysis} disabled={isAnalyzing} className="text-[9px] font-black text-blue-600 uppercase flex items-center gap-2">
+                 {isAnalyzing ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-robot"></i>}
+                 Debrief
+               </button>
             )}
           </div>
           <div className="max-h-64 overflow-y-auto p-2 space-y-2">
             {arrest.events.map(e => (
-              <div key={e.id} className="flex gap-3 items-start p-2 rounded-lg bg-slate-50/50">
+              <div key={e.id} className="flex gap-3 items-start p-2 rounded-lg bg-slate-50/50 border border-slate-100">
                 <span className="text-[9px] font-mono text-slate-400 mt-0.5">{e.wallTime}</span>
                 <div>
                   <p className="text-[11px] font-black text-slate-800 uppercase leading-none">{e.type}</p>
@@ -222,28 +252,35 @@ const App: React.FC = () => {
                 </div>
               </div>
             ))}
+            {arrest.events.length === 0 && (
+              <div className="p-8 text-center text-slate-300">
+                <i className="fas fa-file-medical text-3xl mb-2 opacity-20"></i>
+                <p className="text-[10px] font-bold uppercase tracking-widest">Recording standby...</p>
+              </div>
+            )}
           </div>
         </div>
       </main>
 
-      {/* AI Analysis Overlay */}
       {showAnalysis && (
-        <div className="fixed inset-0 z-[100] bg-slate-900/90 flex items-end sm:items-center justify-center p-4 no-print">
+        <div className="fixed inset-0 z-[100] bg-slate-900/90 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 no-print">
           <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl animate-in slide-in-from-bottom duration-300">
             <div className="flex justify-between items-start mb-6">
-              <h2 className="text-xl font-black text-slate-900">Clinical Review</h2>
+              <h2 className="text-xl font-black text-slate-900">Clinical Case Review</h2>
               <button onClick={() => setShowAnalysis(false)} className="text-slate-300 text-2xl"><i className="fas fa-times"></i></button>
             </div>
-            <div className="max-h-[60vh] overflow-y-auto text-sm leading-relaxed text-slate-700 bg-slate-50 p-4 rounded-xl border border-slate-100 mb-6">
+            <div className="max-h-[60vh] overflow-y-auto text-sm leading-relaxed text-slate-700 bg-slate-50 p-5 rounded-2xl border border-slate-100 mb-6 whitespace-pre-wrap font-sans">
               {analysisResult}
             </div>
-            <button onClick={() => window.print()} className="w-full bg-slate-900 text-white py-4 rounded-xl font-black uppercase tracking-widest text-xs">Print Final Record</button>
+            <button onClick={() => window.print()} className="w-full bg-slate-900 text-white py-4 rounded-xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3">
+              <i className="fas fa-print"></i> Print Official Record
+            </button>
           </div>
         </div>
       )}
 
       <footer className="p-4 bg-slate-100 text-[8px] text-slate-400 text-center border-t border-slate-200 uppercase font-black tracking-widest no-print">
-        Official ACLS Record • Restricted Use
+        ACLS Scribe • For Medical Professionals Only
       </footer>
     </div>
   );
@@ -253,10 +290,10 @@ const App: React.FC = () => {
     setIsAnalyzing(true);
     try {
       const result = await analyzeArrest(arrest.events);
-      setAnalysisResult(result || "Failed to generate report.");
+      setAnalysisResult(result || "Unable to generate review.");
       setShowAnalysis(true);
     } catch (e) {
-      setAnalysisResult("AI Error. Please check connectivity.");
+      setAnalysisResult("AI service currently unavailable.");
       setShowAnalysis(true);
     } finally {
       setIsAnalyzing(false);
@@ -271,7 +308,8 @@ const InterventionButton: React.FC<{ label: string; icon: string; color: string;
     emerald: 'bg-emerald-600',
     purple: 'bg-purple-600',
     slate: 'bg-slate-700',
-    rose: 'bg-rose-600'
+    rose: 'bg-rose-600',
+    cyan: 'bg-cyan-600'
   };
   
   return (
@@ -280,10 +318,10 @@ const InterventionButton: React.FC<{ label: string; icon: string; color: string;
       disabled={disabled}
       className={`w-full h-24 rounded-2xl flex flex-col items-center justify-center gap-2 shadow-sm active:scale-95 transition-all disabled:opacity-20 border-b-4 border-slate-200 ${disabled ? 'bg-slate-100' : 'bg-white'} ${urgent ? 'ring-4 ring-amber-400 animate-pulse' : ''}`}
     >
-      <div className={`p-2 rounded-xl text-white ${colorMap[color] || 'bg-slate-500'}`}>
-        <i className={`fas fa-${icon} text-lg`}></i>
+      <div className={`p-2.5 rounded-xl text-white ${colorMap[color] || 'bg-slate-500'}`}>
+        <i className={`fas fa-${icon} text-xl`}></i>
       </div>
-      <span className="text-[9px] font-black uppercase text-slate-700 tracking-tighter">{label}</span>
+      <span className="text-[10px] font-black uppercase text-slate-700 tracking-tighter leading-tight">{label}</span>
     </button>
   );
 };
