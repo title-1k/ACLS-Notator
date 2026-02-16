@@ -51,6 +51,7 @@ const App: React.FC = () => {
   const [etco2Input, setEtco2Input] = useState('');
   const [showRhythmPopover, setShowRhythmPopover] = useState(false);
   const [showAmioPopover, setShowAmioPopover] = useState(false);
+  const [isWaitingForRhythm, setIsWaitingForRhythm] = useState(false);
   
   const popoverRef = useRef<HTMLDivElement>(null);
   const amioPopoverRef = useRef<HTMLDivElement>(null);
@@ -68,6 +69,8 @@ const App: React.FC = () => {
 
         if (currentCycleElapsed >= 120000) {
           setShowRhythmPopover(true);
+          setShowAmioPopover(false); // Mutual exclusivity
+          setIsWaitingForRhythm(true); // Pause metronome sound
           setCycleStartTime(prev => prev + 120000);
           if (window.navigator.vibrate) window.navigator.vibrate([200, 100, 200]);
         }
@@ -92,6 +95,7 @@ const App: React.FC = () => {
     if (type === ActionType.EPINEPHRINE) setLastEpiTime(timestamp);
     if (type === ActionType.RHYTHM_CHECK) {
       setCycleStartTime(timestamp);
+      setIsWaitingForRhythm(false); // Resume metronome sound
     }
 
     if (window.navigator.vibrate) window.navigator.vibrate(50);
@@ -143,6 +147,7 @@ const App: React.FC = () => {
     setCycleTime(0);
     setCycleStartTime(0);
     setLastEpiTime(null);
+    setIsWaitingForRhythm(false);
   };
 
   const formatTime = (ms: number) => {
@@ -212,7 +217,7 @@ const App: React.FC = () => {
               </p>
             </div>
             <div className="h-full">
-              <Metronome isActive={arrest.isActive} isWarning={cycleTime >= 115000} />
+              <Metronome isActive={arrest.isActive} isWarning={cycleTime >= 115000} forceMute={isWaitingForRhythm} />
             </div>
           </div>
         )}
@@ -221,7 +226,7 @@ const App: React.FC = () => {
       <main className="flex-1 p-4 pb-24 overflow-y-auto space-y-4 custom-scrollbar">
         <div className="grid grid-cols-2 gap-3">
           <div className="relative" ref={popoverRef}>
-            <InterventionButton label="Rhythm Check" icon="bolt-lightning" color="amber" onClick={() => setShowRhythmPopover(!showRhythmPopover)} disabled={!arrest.isActive} urgent={cycleDue} />
+            <InterventionButton label="Rhythm Check" icon="bolt-lightning" color="amber" onClick={() => { setShowRhythmPopover(!showRhythmPopover); if (!showRhythmPopover) setShowAmioPopover(false); }} disabled={!arrest.isActive} urgent={cycleDue} />
             {showRhythmPopover && (
               <div className="absolute top-full left-0 mt-2 z-[60] w-64 bg-white border-2 border-slate-300 rounded-3xl shadow-2xl p-5 animate-in slide-in-from-top duration-150 ring-8 ring-red-500/10">
                 <p className="text-[11px] font-black text-red-600 uppercase mb-4 text-center tracking-widest flex items-center justify-center gap-2">
@@ -238,18 +243,18 @@ const App: React.FC = () => {
             )}
           </div>
           
-          <InterventionButton label="Shock 200 J" icon="bolt" color="red" onClick={() => logEvent(ActionType.SHOCK)} disabled={!arrest.isActive} swapped />
+          <InterventionButton label="Shock 200 J" icon="bolt" color="red" onClick={() => logEvent(ActionType.SHOCK)} disabled={!arrest.isActive} />
           
-          <InterventionButton label="Epinephrine" icon="syringe" color="emerald" onClick={() => logEvent(ActionType.EPINEPHRINE)} disabled={!arrest.isActive} urgent={epiDue} swapped />
+          <InterventionButton label="Epinephrine" icon="syringe" color="emerald" onClick={() => logEvent(ActionType.EPINEPHRINE)} disabled={!arrest.isActive} urgent={epiDue} />
           
           <div className="relative" ref={amioPopoverRef}>
-            <InterventionButton label="Amiodarone" icon="capsules" color="purple" onClick={() => setShowAmioPopover(!showAmioPopover)} disabled={!arrest.isActive} />
+            <InterventionButton label="Amiodarone" icon="capsules" color="purple" onClick={() => { setShowAmioPopover(!showAmioPopover); if (!showAmioPopover) setShowRhythmPopover(false); }} disabled={!arrest.isActive} />
             {showAmioPopover && (
               <div className="absolute top-full right-0 mt-2 z-[60] w-64 bg-white border-2 border-slate-300 rounded-3xl shadow-2xl p-5 animate-in slide-in-from-top duration-150 ring-8 ring-purple-500/10">
                 <p className="text-[11px] font-black text-purple-600 uppercase mb-4 text-center tracking-widest">Select Dose</p>
                 <div className="grid grid-cols-1 gap-3">
                   <button onClick={() => { logEvent(ActionType.AMIODARONE_300); setShowAmioPopover(false); }} className="bg-purple-600 text-white text-xs font-black py-4 rounded-2xl shadow-md active:scale-95">300 mg</button>
-                  <button onClick={() => { logEvent(ActionType.AMIODARONE_150); setShowAmioPopover(false); }} className="bg-purple-500 text-white text-xs font-black py-4 rounded-2xl shadow-md active:scale-95">150 mg</button>
+                  <button onClick={() => { logEvent(ActionType.AMIODARONE_150); setShowAmioPopover(false); }} className="bg-purple-600 text-white text-xs font-black py-4 rounded-2xl shadow-md active:scale-95">150 mg</button>
                 </div>
                 <button onClick={() => setShowAmioPopover(false)} className="w-full mt-4 py-2 text-[8px] font-black text-slate-400 uppercase tracking-widest">Close</button>
               </div>
@@ -316,7 +321,7 @@ const App: React.FC = () => {
       )}
 
       <footer className="p-4 bg-slate-100 text-[8px] text-slate-400 text-center border-t border-slate-200 uppercase font-black tracking-widest no-print">
-        ACLS Scribe • version 1.0.7 • Medical Use Only
+        ACLS Scribe • version 1.1.0 • Medical Use Only
       </footer>
     </div>
   );
@@ -344,8 +349,9 @@ const InterventionButton: React.FC<{
   onClick: () => void; 
   disabled?: boolean; 
   urgent?: boolean;
-  swapped?: boolean;
-}> = ({ label, icon, color, onClick, disabled, urgent, swapped }) => {
+}> = ({ label, icon, color, onClick, disabled, urgent }) => {
+  const [isFlashing, setIsFlashing] = useState(false);
+
   const colorMap: any = {
     amber: 'bg-amber-500',
     red: 'bg-red-600',
@@ -368,21 +374,30 @@ const InterventionButton: React.FC<{
     blue: 'text-blue-600'
   };
   
-  const bgColorClass = (swapped && !disabled) ? colorMap[color] : (disabled ? 'bg-slate-100' : 'bg-white');
-  const iconBgClass = (swapped && !disabled) ? 'bg-white' : (colorMap[color] || 'bg-slate-500');
-  const iconTextClass = (swapped && !disabled) ? textMap[color] : 'text-white';
-  const labelTextClass = (swapped && !disabled) ? 'text-white' : 'text-slate-700';
+  const handleTap = () => {
+    if (disabled) return;
+    setIsFlashing(true);
+    onClick();
+    setTimeout(() => setIsFlashing(false), 200);
+  };
+
+  const isSwapped = isFlashing && !disabled;
+  
+  const bgColorClass = isSwapped ? colorMap[color] : (disabled ? 'bg-slate-100' : 'bg-white');
+  const iconBgClass = isSwapped ? 'bg-white shadow-inner' : (colorMap[color] || 'bg-slate-500');
+  const iconTextClass = isSwapped ? textMap[color] : 'text-white';
+  const labelTextClass = isSwapped ? 'text-white' : 'text-slate-700';
 
   return (
     <button
-      onClick={onClick}
+      onClick={handleTap}
       disabled={disabled}
-      className={`w-full h-24 rounded-2xl flex flex-col items-center justify-center gap-2 shadow-sm active:scale-95 transition-all disabled:opacity-20 border-b-4 border-slate-200 ${bgColorClass} ${urgent ? 'ring-4 ring-amber-400 animate-pulse' : ''}`}
+      className={`w-full h-24 rounded-2xl flex flex-col items-center justify-center gap-2 shadow-sm active:scale-95 transition-all duration-150 disabled:opacity-20 border-b-4 border-slate-200 ${bgColorClass} ${urgent ? 'ring-4 ring-amber-400 animate-pulse' : ''}`}
     >
-      <div className={`p-2.5 rounded-xl ${iconBgClass} ${iconTextClass}`}>
+      <div className={`p-2.5 rounded-xl transition-colors duration-150 ${iconBgClass} ${iconTextClass}`}>
         <i className={`fas fa-${icon} text-xl`}></i>
       </div>
-      <span className={`text-[10px] font-black uppercase text-slate-700 tracking-tighter leading-tight text-center px-1 ${labelTextClass}`}>{label}</span>
+      <span className={`text-[10px] font-black uppercase tracking-tighter leading-tight text-center px-1 transition-colors duration-150 ${labelTextClass}`}>{label}</span>
     </button>
   );
 };

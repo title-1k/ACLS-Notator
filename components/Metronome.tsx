@@ -4,9 +4,10 @@ import React, { useState, useEffect, useRef } from 'react';
 interface MetronomeProps {
   isActive: boolean;
   isWarning: boolean;
+  forceMute?: boolean;
 }
 
-const Metronome: React.FC<MetronomeProps> = ({ isActive, isWarning }) => {
+const Metronome: React.FC<MetronomeProps> = ({ isActive, isWarning, forceMute = false }) => {
   const [bpm, setBpm] = useState(120);
   const [isMuted, setIsMuted] = useState(false);
   const [tick, setTick] = useState(false);
@@ -18,13 +19,14 @@ const Metronome: React.FC<MetronomeProps> = ({ isActive, isWarning }) => {
       const msPerBeat = 60000 / bpm;
       interval = window.setInterval(() => {
         setTick(prev => !prev);
-        if (!isMuted) {
+        // Sound only plays if not manually muted AND not forced to mute (waiting for rhythm)
+        if (!isMuted && !forceMute) {
           playClick(isWarning);
         }
       }, msPerBeat);
     }
     return () => clearInterval(interval);
-  }, [isActive, bpm, isMuted, isWarning]);
+  }, [isActive, bpm, isMuted, isWarning, forceMute]);
 
   const playClick = (highPitch: boolean) => {
     if (!audioCtxRef.current) {
@@ -74,7 +76,7 @@ const Metronome: React.FC<MetronomeProps> = ({ isActive, isWarning }) => {
         onClick={() => setIsMuted(!isMuted)}
         className="flex items-center justify-center gap-1.5 flex-1 px-0.5 h-full"
       >
-        <i className={`fas ${isMuted ? 'fa-volume-mute' : 'fa-volume-up'} text-[10px] ${tick && !isWarning ? 'text-white' : 'text-slate-400'}`}></i>
+        <i className={`fas ${isMuted || forceMute ? 'fa-volume-mute' : 'fa-volume-up'} text-[10px] ${tick && !isWarning ? 'text-white' : 'text-slate-400'}`}></i>
         <div className="flex flex-col items-center justify-center">
           <span className={`text-[12px] font-black font-mono leading-none ${tick && !isWarning ? 'text-white' : 'text-slate-900'}`}>{bpm}</span>
           <span className={`text-[6px] font-black uppercase tracking-tighter leading-none mt-0.5 ${tick && !isWarning ? 'text-blue-100' : 'text-slate-400'}`}>BPM</span>
