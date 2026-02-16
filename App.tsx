@@ -204,7 +204,14 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col max-w-lg mx-auto shadow-none sm:shadow-2xl border-x border-slate-200">
-      {/* Title Bar */}
+      {/* Credit Header - Updated color to prevent blending */}
+      <div className="bg-slate-100 text-slate-500 px-4 py-1.5 no-print border-b border-slate-200 flex justify-center items-center">
+        <p className="text-[9px] font-bold uppercase tracking-[0.15em]">
+          Made by <span className="text-slate-900">title.1k</span> & <span className="text-blue-600">Google AI Studio</span>
+        </p>
+      </div>
+
+      {/* Hospital Title Bar */}
       <div className="bg-slate-900 text-white px-4 py-1.5 shadow-md no-print border-b border-slate-700">
         <p className="text-[11px] font-black uppercase tracking-widest text-center opacity-80">
           ER • ศูนย์การแพทย์กาญจนาภิเษก
@@ -458,7 +465,7 @@ const App: React.FC = () => {
       )}
 
       <footer className="p-4 bg-slate-100 text-[8px] text-slate-400 text-center border-t border-slate-200 uppercase font-black tracking-widest no-print">
-        ACLS Scribe • version 1.3.1 • Medical Use Only
+        ACLS Scribe • version 1.3.3 • Medical Use Only
       </footer>
     </div>
   );
