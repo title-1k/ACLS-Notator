@@ -55,6 +55,7 @@ const App: React.FC = () => {
   const [isWaitingForRhythm, setIsWaitingForRhythm] = useState(false);
   const [roscFlashing, setRoscFlashing] = useState(false);
   const [isShockAdvised, setIsShockAdvised] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
   
   const popoverRef = useRef<HTMLDivElement>(null);
   const amioPopoverRef = useRef<HTMLDivElement>(null);
@@ -75,7 +76,7 @@ const App: React.FC = () => {
           setShowRhythmPopover(true);
           setShowAmioPopover(false); 
           setShowDrugPopover(false);
-          setIsWaitingForRhythm(true); // Pause metronome sound
+          setIsWaitingForRhythm(true); 
           setCycleStartTime(prev => prev + 120000);
           if (window.navigator.vibrate) window.navigator.vibrate([200, 100, 200]);
         }
@@ -100,8 +101,7 @@ const App: React.FC = () => {
     if (type === ActionType.EPINEPHRINE) setLastEpiTime(timestamp);
     if (type === ActionType.RHYTHM_CHECK) {
       setCycleStartTime(timestamp);
-      setIsWaitingForRhythm(false); // Resume metronome sound
-      // Check if shockable rhythm was selected
+      setIsWaitingForRhythm(false);
       if (details === 'VF' || details === 'pVT') {
         setIsShockAdvised(true);
       } else {
@@ -120,7 +120,7 @@ const App: React.FC = () => {
     if (!arrest.isActive) return;
     setRoscFlashing(true);
     logEvent(ActionType.ROSC);
-    playROSCAlert();
+    if (!isMuted) playROSCAlert();
     setTimeout(() => setRoscFlashing(false), 300);
   };
 
@@ -131,7 +131,7 @@ const App: React.FC = () => {
         model: "gemini-2.5-flash-preview-tts",
         contents: [{ parts: [{ text: 'Shout loudly and very quickly: R. O. S. C.!' }] }],
         config: {
-          responseModalities: [Modality.AUDIO],
+          responseModalalities: [Modality.AUDIO],
           speechConfig: { 
             voiceConfig: { 
               prebuiltVoiceConfig: { voiceName: 'Kore' } 
@@ -174,6 +174,13 @@ const App: React.FC = () => {
     setIsShockAdvised(false);
   };
 
+  const endCase = () => {
+    setArrest(p => ({...p, isActive: false}));
+    setShowRhythmPopover(false);
+    setShowAmioPopover(false);
+    setShowDrugPopover(false);
+  };
+
   const formatTime = (ms: number) => {
     const totalSeconds = Math.floor(ms / 1000);
     const mins = Math.floor(totalSeconds / 60);
@@ -182,12 +189,10 @@ const App: React.FC = () => {
   };
 
   const epiDue = lastEpiTime !== null && (elapsedTime - lastEpiTime) >= 180000;
-  // Warning starts 10 seconds before 2 minutes
   const cycleDue = cycleTime >= 110000;
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col max-w-lg mx-auto shadow-none sm:shadow-2xl border-x border-slate-200">
-      {/* HOSPITAL BRANDING - HIGH CONTRAST */}
       <div className="bg-slate-900 text-white px-4 py-2.5 shadow-md no-print border-b border-slate-700">
         <p className="text-[13px] font-black uppercase tracking-wider text-center">
           ห้องฉุกเฉิน ศูนย์การแพทย์กาญจนาภิเษก
@@ -201,7 +206,7 @@ const App: React.FC = () => {
               <span className="bg-red-600 text-white px-2 py-0.5 rounded text-[10px]">ACLS</span>
               SCRIBE
             </h1>
-            <div className="mt-2.5">
+            <div className="mt-2.5 flex items-end gap-3">
                {arrest.isActive ? (
                 <div className="flex flex-col">
                   <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-0.5">ELAPSED TIME</span>
@@ -216,15 +221,23 @@ const App: React.FC = () => {
             </div>
           </div>
           
-          <div className="flex flex-col items-end">
+          <div className="flex flex-col items-end gap-2">
             {!arrest.isActive ? (
               <button onClick={startArrest} className="bg-red-600 text-white px-6 py-4 rounded-2xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all">
                 Start Code
               </button>
             ) : (
-              <button onClick={() => setArrest(p => ({...p, isActive: false}))} className="bg-slate-100 text-red-600 px-3 py-1.5 rounded-lg font-black uppercase text-[9px] active:scale-95 border border-slate-200">
-                End Case
-              </button>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => setIsMuted(!isMuted)} 
+                  className={`p-3 rounded-xl border transition-all ${isMuted ? 'bg-amber-100 text-amber-600 border-amber-200' : 'bg-slate-50 text-slate-600 border-slate-200'}`}
+                >
+                  <i className={`fas ${isMuted ? 'fa-volume-mute' : 'fa-volume-up'} text-lg`}></i>
+                </button>
+                <button onClick={endCase} className="bg-slate-100 text-red-600 px-3 py-3 rounded-xl font-black uppercase text-[10px] active:scale-95 border border-slate-200">
+                  End Case
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -242,7 +255,13 @@ const App: React.FC = () => {
               </p>
             </div>
             <div className="h-full">
-              <Metronome isActive={arrest.isActive} isWarning={cycleTime >= 110000} forceMute={isWaitingForRhythm} />
+              <Metronome 
+                isActive={arrest.isActive} 
+                isWarning={cycleTime >= 110000} 
+                forceMute={isWaitingForRhythm} 
+                isMuted={isMuted}
+                onToggleMute={() => setIsMuted(!isMuted)}
+              />
             </div>
           </div>
         )}
@@ -253,17 +272,14 @@ const App: React.FC = () => {
           <div className="relative" ref={popoverRef}>
             <InterventionButton label="Rhythm Check" icon="bolt-lightning" color="amber" onClick={() => { setShowRhythmPopover(!showRhythmPopover); if (!showRhythmPopover) { setShowAmioPopover(false); setShowDrugPopover(false); } }} disabled={!arrest.isActive} urgent={cycleDue} />
             {showRhythmPopover && (
-              <div className="absolute top-full left-0 mt-2 z-[60] w-64 bg-white border-2 border-slate-300 rounded-3xl shadow-2xl p-5 animate-in slide-in-from-top duration-150 ring-8 ring-red-500/10">
-                <p className="text-[11px] font-black text-red-600 uppercase mb-4 text-center tracking-widest flex items-center justify-center gap-2">
-                  <i className="fas fa-heart-pulse animate-beat"></i> Rhythm Check
-                </p>
+              <div className="absolute top-full left-0 mt-2 z-[60] w-64 bg-white border-2 border-slate-300 rounded-3xl shadow-2xl p-4 animate-in fade-in zoom-in duration-150 ring-8 ring-red-500/10">
+                <p className="text-[12px] font-black text-red-600 uppercase mb-4 text-center tracking-widest">Select Rhythm</p>
                 <div className="grid grid-cols-2 gap-3">
-                  <button onClick={() => { logEvent(ActionType.RHYTHM_CHECK, 'VF'); setShowRhythmPopover(false); }} className="bg-red-600 text-white text-xs font-black py-4 rounded-2xl shadow-md active:scale-95">VF</button>
-                  <button onClick={() => { logEvent(ActionType.RHYTHM_CHECK, 'pVT'); setShowRhythmPopover(false); }} className="bg-red-600 text-white text-xs font-black py-4 rounded-2xl shadow-md active:scale-95">pVT</button>
-                  <button onClick={() => { logEvent(ActionType.RHYTHM_CHECK, 'PEA'); setShowRhythmPopover(false); }} className="bg-slate-800 text-white text-xs font-black py-4 rounded-2xl shadow-md active:scale-95">PEA</button>
-                  <button onClick={() => { logEvent(ActionType.RHYTHM_CHECK, 'Asystole'); setShowRhythmPopover(false); }} className="bg-slate-800 text-white text-xs font-black py-4 rounded-2xl shadow-md active:scale-95">Asystole</button>
+                  <button onClick={() => { logEvent(ActionType.RHYTHM_CHECK, 'VF'); setShowRhythmPopover(false); }} className="bg-red-600 text-white text-[11px] font-black py-4 rounded-2xl shadow-md active:scale-95">VF</button>
+                  <button onClick={() => { logEvent(ActionType.RHYTHM_CHECK, 'pVT'); setShowRhythmPopover(false); }} className="bg-red-600 text-white text-[11px] font-black py-4 rounded-2xl shadow-md active:scale-95">pVT</button>
+                  <button onClick={() => { logEvent(ActionType.RHYTHM_CHECK, 'PEA'); setShowRhythmPopover(false); }} className="bg-slate-800 text-white text-[11px] font-black py-4 rounded-2xl shadow-md active:scale-95">PEA</button>
+                  <button onClick={() => { logEvent(ActionType.RHYTHM_CHECK, 'Asystole'); setShowRhythmPopover(false); }} className="bg-slate-800 text-white text-[11px] font-black py-4 rounded-2xl shadow-md active:scale-95">ASY</button>
                 </div>
-                <button onClick={() => setShowRhythmPopover(false)} className="w-full mt-4 py-2 text-[8px] font-black text-slate-400 uppercase tracking-widest">Close</button>
               </div>
             )}
           </div>
@@ -275,13 +291,12 @@ const App: React.FC = () => {
           <div className="relative" ref={amioPopoverRef}>
             <InterventionButton label="Amiodarone" icon="capsules" color="purple" onClick={() => { setShowAmioPopover(!showAmioPopover); if (!showAmioPopover) { setShowRhythmPopover(false); setShowDrugPopover(false); } }} disabled={!arrest.isActive} />
             {showAmioPopover && (
-              <div className="absolute top-full right-0 mt-2 z-[60] w-64 bg-white border-2 border-slate-300 rounded-3xl shadow-2xl p-5 animate-in slide-in-from-top duration-150 ring-8 ring-purple-500/10">
-                <p className="text-[11px] font-black text-purple-600 uppercase mb-4 text-center tracking-widest">Select Dose</p>
+              <div className="absolute top-full right-0 mt-2 z-[60] w-60 bg-white border-2 border-slate-300 rounded-3xl shadow-2xl p-4 animate-in fade-in zoom-in duration-150 ring-8 ring-purple-500/10">
+                <p className="text-[12px] font-black text-purple-600 uppercase mb-4 text-center tracking-widest">Select Dose</p>
                 <div className="grid grid-cols-1 gap-3">
-                  <button onClick={() => { logEvent(ActionType.AMIODARONE_300); setShowAmioPopover(false); }} className="bg-purple-600 text-white text-xs font-black py-4 rounded-2xl shadow-md active:scale-95">300 mg</button>
-                  <button onClick={() => { logEvent(ActionType.AMIODARONE_150); setShowAmioPopover(false); }} className="bg-purple-600 text-white text-xs font-black py-4 rounded-2xl shadow-md active:scale-95">150 mg</button>
+                  <button onClick={() => { logEvent(ActionType.AMIODARONE_300); setShowAmioPopover(false); }} className="bg-purple-600 text-white text-[11px] font-black py-4 rounded-2xl shadow-md active:scale-95">300 mg (1st)</button>
+                  <button onClick={() => { logEvent(ActionType.AMIODARONE_150); setShowAmioPopover(false); }} className="bg-purple-600 text-white text-[11px] font-black py-4 rounded-2xl shadow-md active:scale-95">150 mg (2nd)</button>
                 </div>
-                <button onClick={() => setShowAmioPopover(false)} className="w-full mt-4 py-2 text-[8px] font-black text-slate-400 uppercase tracking-widest">Close</button>
               </div>
             )}
           </div>
@@ -292,24 +307,22 @@ const App: React.FC = () => {
           
           <InterventionButton label="IV / IO Access" icon="faucet-drip" color="blue" onClick={() => logEvent(ActionType.IV_IO)} disabled={!arrest.isActive} />
 
-          {/* CONSOLIDATED OTHER DRUGS POPOVER - MODIFIED TO POP TO THE LEFT */}
           <div className="relative" ref={drugPopoverRef}>
             <InterventionButton label="Other Drugs" icon="prescription-bottle-medical" color="zinc" onClick={() => { setShowDrugPopover(!showDrugPopover); if (!showDrugPopover) { setShowRhythmPopover(false); setShowAmioPopover(false); } }} disabled={!arrest.isActive} />
             {showDrugPopover && (
-              <div className="absolute top-0 right-full mr-3 z-[60] w-64 bg-white border-2 border-slate-300 rounded-3xl shadow-2xl p-5 animate-in slide-in-from-right duration-150 ring-8 ring-zinc-500/10">
-                <p className="text-[11px] font-black text-zinc-600 uppercase mb-4 text-center tracking-widest">Select Drug</p>
+              <div className="absolute top-0 right-full mr-4 z-[60] w-48 bg-white border-2 border-slate-300 rounded-3xl shadow-2xl p-4 animate-in fade-in slide-in-from-right duration-150 ring-8 ring-zinc-500/10">
+                <p className="text-[10px] font-black text-zinc-600 uppercase mb-3 text-center tracking-widest">Select Drug</p>
                 <div className="grid grid-cols-1 gap-3">
-                  <button onClick={() => { logEvent(ActionType.NAHCO3); setShowDrugPopover(false); }} className="bg-zinc-600 text-white text-xs font-black py-4 rounded-2xl shadow-md active:scale-95 flex items-center justify-center gap-2">
-                    <i className="fas fa-flask"></i> 7.5% NaHCO3
+                  <button onClick={() => { logEvent(ActionType.NAHCO3); setShowDrugPopover(false); }} className="bg-zinc-600 text-white text-[11px] font-black py-4 rounded-2xl shadow-md active:scale-95">
+                    NaHCO3
                   </button>
-                  <button onClick={() => { logEvent(ActionType.CALCIUM); setShowDrugPopover(false); }} className="bg-orange-500 text-white text-xs font-black py-4 rounded-2xl shadow-md active:scale-95 flex items-center justify-center gap-2">
-                    <i className="fas fa-vial-circle-check"></i> Calcium gluconate
+                  <button onClick={() => { logEvent(ActionType.CALCIUM); setShowDrugPopover(false); }} className="bg-orange-500 text-white text-[11px] font-black py-4 rounded-2xl shadow-md active:scale-95">
+                    Calcium
                   </button>
-                  <button onClick={() => { logEvent(ActionType.RI_GLUCOSE); setShowDrugPopover(false); }} className="bg-pink-500 text-white text-xs font-black py-4 rounded-2xl shadow-md active:scale-95 flex items-center justify-center gap-2">
-                    <i className="fas fa-droplet"></i> RI + Glucose
+                  <button onClick={() => { logEvent(ActionType.RI_GLUCOSE); setShowDrugPopover(false); }} className="bg-pink-500 text-white text-[11px] font-black py-4 rounded-2xl shadow-md active:scale-95">
+                    RI + Gluc
                   </button>
                 </div>
-                <button onClick={() => setShowDrugPopover(false)} className="w-full mt-4 py-2 text-[8px] font-black text-slate-400 uppercase tracking-widest">Close</button>
               </div>
             )}
           </div>
@@ -320,7 +333,6 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        {/* ROSC BUTTON - FULL WIDTH RED BAR */}
         <button 
           onClick={handleROSC}
           disabled={!arrest.isActive}
@@ -378,7 +390,7 @@ const App: React.FC = () => {
       )}
 
       <footer className="p-4 bg-slate-100 text-[8px] text-slate-400 text-center border-t border-slate-200 uppercase font-black tracking-widest no-print">
-        ACLS Scribe • version 1.1.4 • Medical Use Only
+        ACLS Scribe • version 1.1.8 • Medical Use Only
       </footer>
     </div>
   );
