@@ -52,6 +52,7 @@ const App: React.FC = () => {
   const [showRhythmPopover, setShowRhythmPopover] = useState(false);
   const [showAmioPopover, setShowAmioPopover] = useState(false);
   const [isWaitingForRhythm, setIsWaitingForRhythm] = useState(false);
+  const [roscFlashing, setRoscFlashing] = useState(false);
   
   const popoverRef = useRef<HTMLDivElement>(null);
   const amioPopoverRef = useRef<HTMLDivElement>(null);
@@ -100,6 +101,14 @@ const App: React.FC = () => {
 
     if (window.navigator.vibrate) window.navigator.vibrate(50);
   }, [arrest.startTime]);
+
+  const handleROSC = () => {
+    if (!arrest.isActive) return;
+    setRoscFlashing(true);
+    logEvent(ActionType.ROSC);
+    playROSCAlert();
+    setTimeout(() => setRoscFlashing(false), 300);
+  };
 
   const playROSCAlert = async () => {
     try {
@@ -264,14 +273,28 @@ const App: React.FC = () => {
           <InterventionButton label="Lidocaine" icon="vial" color="cyan" onClick={() => logEvent(ActionType.LIDOCAINE)} disabled={!arrest.isActive} />
           
           <InterventionButton label="Airway" icon="lungs" color="slate" onClick={() => logEvent(ActionType.INTUBATION)} disabled={!arrest.isActive} />
-          <InterventionButton label="ROSC" icon="heart-pulse" color="rose" onClick={() => { logEvent(ActionType.ROSC); playROSCAlert(); }} disabled={!arrest.isActive} />
-          <InterventionButton label="IV / IO Access" icon="faucet-drip" color="blue" onClick={() => logEvent(ActionType.IV_IO)} disabled={!arrest.isActive} />
           
+          <InterventionButton label="IV / IO Access" icon="faucet-drip" color="blue" onClick={() => logEvent(ActionType.IV_IO)} disabled={!arrest.isActive} />
+          <InterventionButton label="NaHCO3" icon="flask" color="zinc" onClick={() => logEvent(ActionType.NAHCO3)} disabled={!arrest.isActive} />
+          
+          <InterventionButton label="Calcium" icon="vial-circle-check" color="orange" onClick={() => logEvent(ActionType.CALCIUM)} disabled={!arrest.isActive} />
+          <InterventionButton label="RI + Glucose" icon="droplet" color="pink" onClick={() => logEvent(ActionType.RI_GLUCOSE)} disabled={!arrest.isActive} />
+
           <div className="col-span-2 bg-white p-3 rounded-2xl border border-slate-200 flex gap-2 items-center shadow-sm">
             <input type="number" placeholder="EtCO2 mmHg" value={etco2Input} onChange={e => setEtco2Input(e.target.value)} disabled={!arrest.isActive} className="flex-1 bg-slate-50 border-none rounded-lg px-4 py-3 text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none" />
             <button onClick={() => { logEvent(ActionType.ETCO2, `${etco2Input} mmHg`); setEtco2Input(''); }} className="bg-blue-600 text-white px-6 py-3 rounded-lg font-black uppercase text-[10px] active:scale-95">Log</button>
           </div>
         </div>
+
+        {/* ROSC BUTTON - FULL WIDTH RED BAR */}
+        <button 
+          onClick={handleROSC}
+          disabled={!arrest.isActive}
+          className={`w-full py-6 rounded-2xl flex items-center justify-center gap-4 shadow-lg transition-all active:scale-[0.98] border-b-4 border-red-800 disabled:opacity-20 ${roscFlashing ? 'bg-white text-red-600' : 'bg-red-600 text-white'}`}
+        >
+          <i className={`fas fa-heart-pulse text-2xl ${roscFlashing ? '' : 'animate-pulse'}`}></i>
+          <span className="text-xl font-black uppercase tracking-[0.2em]">ROSC ACHIEVED</span>
+        </button>
 
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
           <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
@@ -321,7 +344,7 @@ const App: React.FC = () => {
       )}
 
       <footer className="p-4 bg-slate-100 text-[8px] text-slate-400 text-center border-t border-slate-200 uppercase font-black tracking-widest no-print">
-        ACLS Scribe • version 1.1.0 • Medical Use Only
+        ACLS Scribe • version 1.1.1 • Medical Use Only
       </footer>
     </div>
   );
@@ -360,7 +383,10 @@ const InterventionButton: React.FC<{
     slate: 'bg-slate-700',
     rose: 'bg-rose-600',
     cyan: 'bg-cyan-600',
-    blue: 'bg-blue-600'
+    blue: 'bg-blue-600',
+    zinc: 'bg-zinc-500',
+    orange: 'bg-orange-500',
+    pink: 'bg-pink-500'
   };
 
   const textMap: any = {
@@ -371,7 +397,10 @@ const InterventionButton: React.FC<{
     slate: 'text-slate-700',
     rose: 'text-rose-600',
     cyan: 'text-cyan-600',
-    blue: 'text-blue-600'
+    blue: 'text-blue-600',
+    zinc: 'text-zinc-600',
+    orange: 'text-orange-600',
+    pink: 'text-pink-600'
   };
   
   const handleTap = () => {

@@ -14,6 +14,9 @@ export enum ActionType {
   IV_IO = 'IV/IO Access',
   BLOOD_GAS = 'Blood Gas Drawn',
   ETCO2 = 'End-tidal CO2',
+  NAHCO3 = '7.5% NaHCO3',
+  CALCIUM = '10% Calcium Gluconate',
+  RI_GLUCOSE = 'RI + Glucose',
   OTHER = 'Manual Note'
 }
 
