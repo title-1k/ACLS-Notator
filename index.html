@@ -3,22 +3,74 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ACLS CPR Notator</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>ACLS CPR Scribe</title>
+    
+    <!-- Professional CDNs -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-<script type="importmap">
+    
+    <script>
+      // Protocol Check for iPhone/Mobile
+      if (window.location.protocol === 'file:') {
+        window.addEventListener('DOMContentLoaded', () => {
+          document.body.innerHTML = `
+            <div style="font-family: -apple-system, BlinkMacSystemFont, sans-serif; padding: 30px; text-align: center; background: #f8fafc; color: #1e293b; height: 100vh; display: flex; flex-direction: column; justify-content: center;">
+              <div style="font-size: 50px; margin-bottom: 20px;">🏥</div>
+              <h1 style="font-weight: 900; letter-spacing: -1px; color: #e11d48;">IPHONE OFFLINE SETUP</h1>
+              <p style="margin: 20px 0; line-height: 1.5; font-size: 16px; color: #64748b;">
+                Safari blocks local scripts for security. To use this as an offline app:
+              </p>
+              <div style="background: white; border: 1px solid #e2e8f0; padding: 20px; border-radius: 16px; text-align: left; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);">
+                <ol style="padding-left: 20px; margin: 0; font-size: 14px; color: #334155;">
+                  <li style="margin-bottom: 10px;">Upload these files to a server (Vercel/GitHub).</li>
+                  <li style="margin-bottom: 10px;">Open that URL in Safari on your iPhone.</li>
+                  <li style="margin-bottom: 10px;">Tap the <b>Share icon</b> (square with arrow).</li>
+                  <li>Select <b>"Add to Home Screen"</b>.</li>
+                </ol>
+              </div>
+              <p style="margin-top: 30px; font-size: 12px; font-weight: bold; color: #94a3b8; text-transform: uppercase;">Medical Documentation Protocol v4.2</p>
+            </div>
+          `;
+        });
+      }
+    </script>
+
+    <script type="importmap">
 {
   "imports": {
     "react/": "https://esm.sh/react@^19.2.4/",
     "react": "https://esm.sh/react@^19.2.4",
     "@google/genai": "https://esm.sh/@google/genai@^1.41.0",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.4/"
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.4",
+    "vite": "https://esm.sh/vite@^7.3.1"
   }
 }
 </script>
+    <script type="module" src="./index.tsx"></script>
+    
+    <style>
+      /* Mobile Optimizations */
+      -webkit-tap-highlight-color: transparent;
+      body {
+        overscroll-behavior-y: none; /* Prevent pull-to-refresh in high stress use */
+        -webkit-user-select: none;
+      }
+      input {
+        -webkit-user-select: text; /* Allow text input */
+      }
+      @media print {
+        .no-print { display: none !important; }
+        .print-only { display: block !important; }
+      }
+      .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+      .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    </style>
 </head>
-<body class="bg-gray-900 text-gray-100">
+<body class="bg-slate-50 text-slate-900 antialiased overflow-x-hidden">
     <div id="root"></div>
 </body>
 </html>

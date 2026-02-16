@@ -13,6 +13,7 @@ export enum ActionType {
   PRONOUNCED = 'Arrest Terminated',
   IV_IO = 'IV/IO Access',
   BLOOD_GAS = 'Blood Gas Drawn',
+  ETCO2 = 'End-tidal CO2',
   OTHER = 'Manual Note'
 }
 
